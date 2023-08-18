@@ -11,12 +11,9 @@
 #include "HARDWARE_uart.h"
 #include "stdbool.h"
 #include "pid.h"
-#include "timer_drv.h"
 #include "myMath.h"
 #include "gcs.h"
 #include "sdk.h"
-#include "stdbool.h"
-//#include "program_ctrl.h"
 
 extern Usart_t UsartGroup[Num_USART];
 extern PIDInfo_t PIDGroup[emNum_Of_PID_List];
@@ -80,14 +77,9 @@ void Follow_Init()
     FollowManager.CountDownNumMs = MAX_COUNTDOWN;
     FollowManager.TargetAltitudeCM = TARGETALTITUDECM;
 
-    FollowManager.FrontOpenmvFramePtr = (OpenMVFrame_t *)UsartGroup[UART_A1].RxBuff;
-    FollowManager.GroundOpenmvFramePtr = (OpenMVFrame_t *)UsartGroup[UART_A3].RxBuff;
+    FollowManager.FrontOpenmvFramePtr = (OpenMVFrame_t *)UsartGroup[FrontViewOpenmv].RxBuff;
+    FollowManager.GroundOpenmvFramePtr = (OpenMVFrame_t *)UsartGroup[LookDownOpenmv].RxBuff;
     FollowManager.ptrUAVInfo = &g_UAVinfo;
-
-    P1DIR &= ~(1 << BIT1);
-    MAP_GPIO_setAsInputPinWithPullUpResistor(GPIO_PORT_P1, GPIO_PIN1);
-    P1DIR &= ~(1 << BIT4);
-    MAP_GPIO_setAsInputPinWithPullUpResistor(GPIO_PORT_P1, GPIO_PIN4);
 
     FollowManager.ptrPIDInfoY->kp = 0.01f;
     FollowManager.ptrPIDInfoY->ki = 0.001f;
@@ -121,7 +113,6 @@ float angle_temp_dt = 0;
 //此函数只做状态判断和状态更新
 void UpdateStatus()
 {
-    uint16_t distance = 0;
     static float pre_yaw_temp = 0;
     static int cnt = 0;
 
@@ -157,74 +148,11 @@ void UpdateStatus()
 
     //悬停到空中5S，然后跳到自动降落状态
     case ActionHoverStartPoint:
-        ActionHoldPoint(MAX_HOVER_ERR, 300, ActionFindPole);
+        ActionHoldPoint(MAX_HOVER_ERR, 300, ActionGoForward);
         //        ActionHoldPoint(MAX_HOVER_ERR, 200, ActionFindLandSpace);
         break;
-    case ActionFindPole:
-        // 开始自旋，顺时针
-        // 并且记录旋转的角度
-        // 是否发现绿色杆？
-        if (FollowManager.FrontOpenmvFramePtr->FormType == Pole)
-        {
-            //      是
-            //      停止自旋
-
-            //      跳到下一个动作
-            FollowManager.ActionList = ActionCloseToPole;
-            //            FollowManager.ActionList = ActionResetAngle;
-            //            FollowManager.ActionList = ActionTest;
-        }
-        break;
-    case ActionTest:
-        ActionHoldPoint(MAX_HOVER_ERR, 300, ActionPreLand);
-        break;
-    case ActionCloseToPole:
-        // 目标：保持绿色杆在画面中心
-        // 向前走，并且控制PID进行自旋
-        // 是否距离到达了50cm?
-        //      是
-        //      跳到下一个动作
-
-        if (FollowManager.distance < 55)
-        {
-            cnt++;
-
-            FollowManager.ActionList = ActionTurnRound;
-
-            pre_yaw_temp = g_Attitude.yaw;
-        }
-        break;
-    case ActionTurnRound:
-        // 目标：保持绿色杆在画面中心
-        // 缓慢调整yaw角到360°
-        //  yaw是否调整完毕
-        //      是
-        //      切换到寻找降落点
-        if (is_set_round(pre_yaw_temp, g_Attitude.yaw))
-        {
-            FollowManager.ActionList = ActionResetAngle;
-        }
-//        angle_temp_dt = absFloat(update_yaw_info_in_360() - pre_yaw_temp);
-//        if(angle_temp_dt > 355)
-//        {
-//            FollowManager.ActionList = ActionLand;
-//        }
-
-        break;
-    case ActionResetAngle:
-        // 回到最初角度
-        ActionHoldPoint(MAX_HOVER_ERR, 200, ActionFindLandSpace);
-
-        break;
-    case ActionFindLandSpace:
-        // 往左上角的目标点飞
-        // 是否发现降落点，这里识别下视的OpenMV的数据是否找到
-        // 是
-        // 切换到降落模式
-        if (FollowManager.GroundOpenmvFramePtr->FormType == Cirle)
-        {
-            FollowManager.ActionList = ActionPreLand;
-        }
+    case ActionGoForward:
+        ActionHoldPoint(MAX_HOVER_ERR, 500, ActionPreLand);
         break;
     case ActionPreLand:
         ActionHoldPoint(MAX_HOVER_ERR, 200, ActionLand);
@@ -431,36 +359,7 @@ void ActionHoldPoint(int8_t Err, int16_t HoldTime, FSMList_t NextAction)
 
 void UpdateButton()
 {
-    //判定两个输入是否有效，其实是判断左右两个按键
-    volatile static uint8_t input = 0;
-    volatile static uint8_t input2 = 0;
-    input = P1IN & BIT1;
-    input2 = P1IN & BIT4;
-
-    //判断巡线按钮是否按下
-    if (input)
-    {
-    }
-    else
-    {
-        FollowLine = true;
-    }
-
-    //判断寻找ApriTag按钮是否按下
-    if (input2)
-    {
-    }
-    else
-    {
-        FollowApriTag = true;
-    }
-
-    //判断当前是否被多按
-    if (FollowApriTag == false && FollowLine == false)
-    {
-        return;
-    }
-    else
+    if(!(GPIOE->IDR >> 4 & 0x01))
     {
         static bool CloseGate = true;
 

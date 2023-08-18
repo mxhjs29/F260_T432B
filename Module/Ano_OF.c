@@ -6,6 +6,7 @@
  * 描述    ：光流数据解析
 **********************************************************************************/
 #include "Ano_OF.h"
+#include "FollowLine.h"
 //#include "Ano_FcData.h"
 
 /*
@@ -18,7 +19,7 @@ OF_STATE :
 7bit: 1
 */
 _ano_of_st ANO_OF;
-
+int freq_count = 0;
 void AnoOF_DataAnl(uint8_t *data_buf,uint8_t num);
 
 #define OF_BUF_NUM 50
@@ -186,7 +187,8 @@ void AnoOF_DataAnl(uint8_t *data_buf,uint8_t num)
 		if(*(data_buf+5)==0)//原始高度信息
 		{
             ano_of_alt_count++;
-			ANO_OF.ALT = (uint16_t)(*(data_buf+6)<<8)|*(data_buf+7) ;
+//			ANO_OF.ALT = (uint16_t)(*(data_buf+6)<<8)|*(data_buf+7);
+
 			of_check_f[1] = 1;
 		}
 		else if(*(data_buf+5)==1)//融合后高度信息

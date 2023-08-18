@@ -60,10 +60,12 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define BEEP_Pin GPIO_PIN_2
-#define BEEP_GPIO_Port GPIOE
+#define POWER_Pin GPIO_PIN_5
+#define POWER_GPIO_Port GPIOE
 #define SW2_Pin GPIO_PIN_4
 #define SW2_GPIO_Port GPIOE
+#define POWER_BUTTON_Pin GPIO_PIN_6
+#define POWER_BUTTON_GPIO_Port GPIOE
 #define LED_B_Pin GPIO_PIN_10
 #define LED_B_GPIO_Port GPIOD
 #define LED_R_Pin GPIO_PIN_11

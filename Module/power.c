@@ -1,11 +1,11 @@
 #include "power.h"
 #include "main.h"
 //#include "timer_drv.h"
-//#include "led.h"
+#include "led.h"
 
-#define IS_POWER_BUTTON_ENABLE (P4IN & BIT1)
-#define POWER_MANAGER_ON (P4OUT |= GPIO_PIN6)
-#define POWER_MANAGER_OFF (P4OUT &= ~GPIO_PIN6)
+#define IS_POWER_BUTTON_ENABLE (GPIOE->IDR & GPIO_PIN_6)
+#define POWER_MANAGER_ON (GPIOE->ODR |= GPIO_PIN_5)
+#define POWER_MANAGER_OFF (GPIOE->ODR &= ~GPIO_PIN_5)
 
 typedef enum
 {
@@ -17,12 +17,11 @@ bool power_update_enable = false;
 pwoer_status_t pwoer_status;
 void power_init(void)
 {
-    //p4.1为输入,内部拉高
-    P4DIR &= ~(1 << BIT1);
-    MAP_GPIO_setAsInputPinWithPullUpResistor(GPIO_PORT_P4, GPIO_PIN1);
+    //B15为输入,内部拉高
+//    P4DIR &= ~(1 << BIT1);
+//    MAP_GPIO_setAsInputPinWithPullUpResistor(GPIO_PORT_P4, GPIO_PIN1);
 
-    //P4.6为输出
-    P4DIR |= GPIO_PIN6;
+    //E2为输出
     pwoer_status = power_on;
     
     if (!IS_POWER_BUTTON_ENABLE)
@@ -44,17 +43,17 @@ void power_update(void)
             cnt++;
             
             //2s后关机
-            if(cnt > 2000)
+            if(cnt > 100)
             {
                 cnt = 0;
                 LED_RGB_R_ON;
-                Delay_ms(100);
+                HAL_Delay(100);
                 LED_RGB_R_OFF;
-                Delay_ms(100);
+                HAL_Delay(100);
                 LED_RGB_R_ON;
-                Delay_ms(100);
+                HAL_Delay(100);
                 LED_RGB_R_OFF;
-                Delay_ms(100);
+                HAL_Delay(100);
                 POWER_MANAGER_OFF;
                 while(1);
             }

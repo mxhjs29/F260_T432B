@@ -281,36 +281,7 @@ void ActionHoldPoint(int8_t Err, int16_t HoldTime, FSMList_t NextAction)
 
 void UpdateButton()
 {
-    //判定两个输入是否有效，其实是判断左右两个按键
-    volatile static uint8_t input = 0;
-    volatile static uint8_t input2 = 0;
-    input = P1IN & BIT1;
-    input2 = P1IN & BIT4;
-
-    //判断巡线按钮是否按下
-    if (input)
-    {
-    }
-    else
-    {
-        FollowLine = true;
-    }
-
-    //判断寻找ApriTag按钮是否按下
-    if (input2)
-    {
-    }
-    else
-    {
-        FollowApriTag = true;
-    }
-
-    //判断当前是否被多按
-    if (FollowApriTag == false && FollowLine == false)
-    {
-        return;
-    }
-    else
+    if(!(GPIOE->IDR >> 4 & 0x01))
     {
         static bool CloseGate = true;
 

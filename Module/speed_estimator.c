@@ -176,6 +176,7 @@ static uint8_t height_init_f = 10;
 
 static int32_t height_old[2];
 bool Select_Baro = false;
+bool Estimator_Enable = false;
 void WZ_Obs_Calcu(float dT_s)//跟随OBS数据更新周期
 {
 	//height[1]
@@ -209,6 +210,22 @@ void WZ_Obs_Calcu(float dT_s)//跟随OBS数据更新周期
     
     Terrain_following(obs_wz_height[1],dT_s);
 	
+    if(g_FMUflg.unlock == 0)
+    {
+        Estimator_Enable = false;
+    }else
+    {
+        if(obs_wz_height[1] <= 30 || HeightInfo.Z_Postion > 10)
+        {
+            Estimator_Enable = true;
+        }
+    }
+
+    if(!Estimator_Enable)
+    {
+        obs_wz_height[1] = 0;
+    }
+    
 	//velocity
 	obs_wz_velocity[0] = (int32_t)((obs_wz_height[0] - height_old[0])/dT_s);
 	obs_wz_velocity[1] = (int32_t)((obs_wz_height[1] - height_old[1])/dT_s);

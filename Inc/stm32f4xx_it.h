@@ -16,6 +16,8 @@
   *
  ******************************************************************************
   */
+  
+  #include "main.h"
 /* USER CODE END Header */
 
 /* Define to prevent recursive inclusion -------------------------------------*/
@@ -56,6 +58,7 @@ void SVC_Handler(void);
 void DebugMon_Handler(void);
 void PendSV_Handler(void);
 void SysTick_Handler(void);
+void DMA1_Stream0_IRQHandler(void);
 void DMA1_Stream1_IRQHandler(void);
 void DMA1_Stream2_IRQHandler(void);
 void DMA1_Stream3_IRQHandler(void);
@@ -76,6 +79,9 @@ void OTG_FS_IRQHandler(void);
 void DMA2_Stream6_IRQHandler(void);
 void USART6_IRQHandler(void);
 /* USER CODE BEGIN EFP */
+
+#define UART4_MAX_RECV_LEN 150
+extern uint8_t UART4_RX_BUF[UART4_MAX_RECV_LEN];
 
 /* USER CODE END EFP */
 

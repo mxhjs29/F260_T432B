@@ -257,10 +257,21 @@ void sdk_yaw_reset(void);
   * ·µ    »Ø£ºvoid 
   * ±¸    ×¢£º
 ******************************************************************************/
+typedef enum
+{
+    sdk_alt = 0,
+    // sdk_velocity_x,
+    // sdk_velocity_y,
+    sdk_pos_x,
+    sdk_pos_y,
+
+    sdk_pid_list,
+} sdk_pid_list_t;
 bool is_pos_y_set_compleate(float max_err);
 bool is_pos_x_set_compleate(float max_err);
 bool is_pos_set_compleate(float max_err);
 void sdk_pos_set(float x,float y);
 void sdk_update_position(void);
 void sdk_reset_position(void);
+extern PIDInfo_t sdk_pid[sdk_pid_list];
 #endif

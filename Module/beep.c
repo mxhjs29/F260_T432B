@@ -16,17 +16,17 @@ void beep_update()
     switch(BeepManager.beep)
     {
         case beep_on:
-            BEEP_ON;
+//            BEEP_ON;
             break;
        
         case beep_flash:
             if(BeepManager.u16FlashTime % BeepManager.beep_flash_freq == 0)
             {
-                BEEP_TOGGLE;
+//                BEEP_TOGGLE;
             }
             break;
         case beep_off:
-            BEEP_OFF;
+//            BEEP_OFF;
             break;
         default:
             break;

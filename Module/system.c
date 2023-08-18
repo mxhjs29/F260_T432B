@@ -43,7 +43,12 @@
 #include "sdk.h"
 #include "beep.h"
 #include "lcd.h"
-
+#include "power.h"
+#include "bt.h"
+#include "stm32_hal_legacy.h"
+#include "tim.h"
+#include "usart.h"
+#include "UWB.h"
 //宏定义区
 
 #define KernelRunningCheck  if(!KernelRunning){ return;}
@@ -51,6 +56,9 @@
 //Extern引用
 extern void lcd_update(uint8_t cnt);
 extern void update_status(void);
+extern int ano_of_alt_count;
+extern int ano_of_count;
+
 
 //私有函数区
 void Update(void);
@@ -63,7 +71,11 @@ extern bool InitComplete;
 int16_t Angle_Int16[3];
 uint8_t Buff[20];
 int sum = 0;
-
+uint8_t UART4_SEND_BUFF[15];
+union LongUint8_t t;
+extern int freq_count;
+uint8_t test_1[4];
+position_send_t car_send;
 /******************************************************************************
   * 函数名称：KernelPolling
   * 函数描述：核心轮询程序
@@ -86,6 +98,8 @@ void KernelPolling()
     //时间段轮询计数
     Cnt++;
     
+//	__HAL_TIM_SetCompare(&htim2, TIM_CHANNEL_2 , 10000);
+	
     //333Hz,修改到滴答计时器里面
     if (Cnt % 3 == 0)
     {        
@@ -109,12 +123,13 @@ void KernelPolling()
         //光流状态更新任务
         AnoOF_State_Task(11);
         
-        float distance = FollowManager.FrontOpenmvFramePtr->cnt1 | (FollowManager.FrontOpenmvFramePtr->Target >> 8);
+//        float distance = FollowManager.FrontOpenmvFramePtr->cnt1 | (FollowManager.FrontOpenmvFramePtr->Target >> 8);
     }
     
     //100Hz
     if (Cnt % 10 == 0)
     {        
+
         //更新巡线任务
         //警告！！！
         //此函数包含自动解锁内容，当运行此函数以后
@@ -123,8 +138,9 @@ void KernelPolling()
         
         //此函数为程控入口函数，当您了解程控机制后，可取消此函数注释
         UpdateCentControl(0.01f);
-        
+//        bt_update();
         sdk_update(0.01f);
+		
     }
     
     //50Hz任务
@@ -149,6 +165,46 @@ void KernelPolling()
         PollingGCS();
        
         lcd_update(0);
+		
+    }
+
+	 if (Cnt % 350 == 0)
+    {
+		uint8_t j;
+		        static uint8_t lsif = 0;
+		UART4_SEND_BUFF[0] = 'a';
+		
+		t.l = UWB_Manager.pos_x - start_position.x;
+		if(t.l < 0)
+			t.l *= -1;
+		for(j = 0;j<3 ;j++)
+			UART4_SEND_BUFF[j+1] = t.u[j];
+		t.l = UWB_Manager.pos_y - start_position.y;
+		if(t.l < 0) 
+			t.l *= -1;
+		for(j = 0;j<3 ;j++)
+			UART4_SEND_BUFF[j+4] = t.u[j];
+		t.l = fire_position.x;
+		for(j = 0;j<3 ;j++)
+			UART4_SEND_BUFF[j+7] = t.u[j];
+		t.l = fire_position.y;
+		for(j = 0;j<3 ;j++)
+			UART4_SEND_BUFF[j+10] = t.u[j];
+	
+		UART4_SEND_BUFF[13] = 0x0d;
+		UART4_SEND_BUFF[14] = 0x0a;
+	
+		HAL_UART_Transmit(&huart4, UART4_SEND_BUFF, 15, 2000);
+		
+		static uint8_t set_time=0;
+		
+    }
+    //1Hz任务
+    if (Cnt % 1000 == 0)
+    {
+        ano_of_alt_count = 0;
+        ano_of_count = 0;	
+		
     }
     
     update_status();
@@ -160,6 +216,8 @@ void KernelPolling()
     PollingUSART();
     
     beep_update();
+    
+    power_update();
 }
 
 /******************* (C) 版权所有 2018 北京中科浩电科技有限公司 *******************/

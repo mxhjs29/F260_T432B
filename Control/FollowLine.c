@@ -6,6 +6,9 @@
 #include "myMath.h"
 #include "gcs.h"
 #include "program_ctrl.h"
+#include "SDK.h"
+#include "UWB.h"
+#include "tim.h"
 
 extern Usart_t UsartGroup[Num_USART];
 extern PIDInfo_t PIDGroup[emNum_Of_PID_List];
@@ -24,11 +27,30 @@ void ActionHoldPoint(int8_t Err, int16_t HoldTime, FSMList_t NextAction);
 bool ActionFormChange(int8_t HoldTime, FormType_t TargetFormType, FSMList_t NextAction);
 void UpdateDebugInfo(void);
 void HoldCurrentPostion(float dt);
+void HoldYawAngle(float dt);
 
+
+static uint8_t gate_1 = 1;
 FollowManager_t FollowManager;
 SonarManager_t SonarManager;
-
-/*
+uint8_t fire_fighting_flag;
+uint8_t back_to_patrol_flag;
+static uint8_t patrol_point[10];
+//patrol_goal_t patrol_goal[30]={{80,70},{300,80} ,{500,83},
+//									 {497,172}, {310,168},{81,153},
+//									 {115,270},{283,223}, {472,214},
+//									 {495,347},{303,337}, {98,325},
+//									 {95,390}, {303,390},{462,440}
+//									};
+patrol_goal_t patrol_goal[30]={{125,100} ,{530,110},
+								{530,190},{150,200},
+								{140,275},{540,280},
+									 {550,360},{140,360},
+									 {150,445},{550,444},
+									};
+patrol_goal_t start_position;
+patrol_goal_t fire_position;
+/* 飞控坐标系
         |+X
         |
         |
@@ -37,17 +59,30 @@ SonarManager_t SonarManager;
         |
         |-X
         
-        
-        
-*/
+   像素坐标系     
+   |+Y
+   |
+   |
+	------- +X
 
+*/
+float absolute(float x)
+{
+	if(x >= 0)
+		return x;
+	if(x < 0)
+		return -x;
+}
 void Follow_Init()
 {
     FollowManager.ptrPIDInfoV = &PIDGroup[emPID_FolloLinePosVertically];
     FollowManager.ptrPIDInfoH = &PIDGroup[emPID_FolloLinePosHorizontally];
+	FollowManager.ptrPIDInfoY = &PIDGroup[emPID_FollowSpdYaw];
 
     FollowManager.ptrPIDInfoV->kp = 1.5f;
     FollowManager.ptrPIDInfoH->kp = 1.5f;
+	FollowManager.ptrPIDInfoY->kp = 0.01f;
+	FollowManager.ptrPIDInfoY->ki = 0.001f;
 
     FollowManager.ptrPIDInfoH->DeathArea = 3;
     FollowManager.ptrPIDInfoV->DeathArea = 3;
@@ -55,37 +90,67 @@ void Follow_Init()
     PIDGroup[emPID_FolloLineSpdVertically].kp = 0.45f;
     PIDGroup[emPID_FolloLineSpdVertically].ki = 0.13f;
     PIDGroup[emPID_FolloLineSpdVertically].kd = 0.014f;
-
+    PIDGroup[emPID_FolloLineSpdVertically].OutLimitHigh = 15;
+	PIDGroup[emPID_FolloLineSpdVertically].OutLimitLow = -15;
+	
     PIDGroup[emPID_FolloLineSpdHorizontally].kp = 0.45f;
     PIDGroup[emPID_FolloLineSpdHorizontally].ki = 0.13f;
     PIDGroup[emPID_FolloLineSpdHorizontally].kd = 0.014f;
+    PIDGroup[emPID_FolloLineSpdHorizontally].OutLimitHigh = 15;
+    PIDGroup[emPID_FolloLineSpdHorizontally].OutLimitLow  = -15;
 
-    PIDGroup[emPID_FolloLinePosVertically].desired = 60 / 2;
-    PIDGroup[emPID_FolloLinePosHorizontally].desired = 80 / 2;
 
+    PIDGroup[emPID_FolloLinePosVertically].desired = 240.0f / 2;
+    PIDGroup[emPID_FolloLinePosHorizontally].desired = 320.0f / 2;
+	PIDGroup[emPID_FollowSpdYaw].desired = 160.0f / 2;
+	
     FollowManager.ptrPIDInfoH->OutLimitHigh = 20;
     FollowManager.ptrPIDInfoH->OutLimitLow = -20;
     FollowManager.ptrPIDInfoV->OutLimitHigh = 20;
     FollowManager.ptrPIDInfoV->OutLimitLow = -20;
-
+	FollowManager.ptrPIDInfoY->OutLimitHigh = 0.5;
+	FollowManager.ptrPIDInfoY->OutLimitLow = -0.5;
+	
+	FollowManager.ptrPIDposition_x->desired = 1;
+	FollowManager.ptrPIDposition_x->kp = 10;
+	FollowManager.ptrPIDposition_x->ki = 0.1;
+	FollowManager.ptrPIDposition_x->kd = 0;
+	FollowManager.ptrPIDposition_x->OutLimitHigh = 15;
+	FollowManager.ptrPIDposition_x->OutLimitLow = -15;
+	FollowManager.ptrPIDposition_x->IntegLimitHigh = 15;
+	FollowManager.ptrPIDposition_x->IntegLimitLow = -15;
+	
+	FollowManager.ptrPIDposition_y->desired = 1;
+	FollowManager.ptrPIDposition_y->kp = 10;
+	FollowManager.ptrPIDposition_y->ki = 0.1;
+	FollowManager.ptrPIDposition_y->kd = 0;
+	FollowManager.ptrPIDposition_y->OutLimitHigh = 15;
+	FollowManager.ptrPIDposition_y->OutLimitLow = -15;
+	FollowManager.ptrPIDposition_y->IntegLimitHigh = 15;
+	FollowManager.ptrPIDposition_y->IntegLimitLow = -15;
+	
+	
+	sdk_reset_Location();
+	
     FollowManager.CountDownNumMs = MAX_COUNTDOWN;
     FollowManager.TargetAltitudeCM = TARGETALTITUDECM;
-
-//    FollowManager.ptrFrame = (OpenMVFrame_t *)UsartGroup[UART_A3].RxBuff;
     FollowManager.ptrUAVInfo = &g_UAVinfo;
 
     for (int i = 0; i < 3; i++)
     {
         StandardControl.StandardControlDirction[i].Speed = 0;
     }
+	
+	start_position.x= patrol_goal[0].x;
+	start_position.y= patrol_goal[0].y;	
 }
 
 //以100hz的速度轮询 10ms
 void UpdateCentControl(float dt)
 {
-    //判断OpenMV返回的数据是否可用，有的时候OpenMV会返回无效数据
-    if (FollowManager.ptrFrame->CentPoint.x1 > 200 || FollowManager.ptrFrame->CentPoint.y1 > 200)
-        return;
+//    //判断OpenMV返回的数据是否可用，有的时候OpenMV会返回无效数据
+//    if (FollowManager.ptrFrame->CentPoint.x1 > 200 || FollowManager.ptrFrame->CentPoint.y1 > 200)
+//        return;
 
     //更新按钮控制实践
     UpdateButton();
@@ -120,210 +185,127 @@ void UpdateStatus()
         //起飞后悬停到悬停点:
         if (FollowApriTag)
         {
-            ActionHoldPoint(MAX_HOVER_ERR, 500, ActionHoverStartPoint);
+            ActionHoldPoint(MAX_HOVER_ERR, 1000, ActionHoverStartPoint);
         }
     }
-    break;
+		break;
     case ActionHoverStartPoint:
-        ActionHoldPoint(MAX_HOVER_ERR, 100, ActionHoldApriTag);
-        //            ActionHoldPoint(MAX_HOVER_ERR, MAX_HOVER_TIME, ActionGoRight);
+          if(patrol_point[0] == 1)
+			  FollowManager.ActionList = patrol;
         break;
-    case ActionGoRight:
+    case patrol:
     {
-        static ActionTimes_t ActionTimes = ActionTimes1;
-
-        switch (ActionTimes)
-        {
-        case ActionTimes1:
-            if (ActionFormChange(MAX_FORMCHANGE_TIME, MirrorFlipLtype, ActionHoldMirrorFlipTurnLtype))
-            {
-                ActionTimes++;
-            }
-            break;
-        case ActionTimes2:
-            if (ActionFormChange(MAX_FORMCHANGE_TIME, MirrorFlipLtype, ActionHoldTurnTtype))
-            {
-                ActionTimes++;
-            }
-            break;
-        default:
-            break;
-        }
+		if(patrol_point[9] == 1 )
+			FollowManager.ActionList = back;
     }
-    break;
-    case ActionHoldMirrorFlipTurnLtype:
-        ActionHoldPoint(MAX_HOVER_ERR, MAX_HOVER_TIME, ActionGoForward);
-        break;
-    case ActionGoForward:
-    {
-        if (FollowApriTag)
-        {
-            if (FollowManager.ptrFrame->FormType == ApriTag)
-            {
-                static int cnt = 0;
-
-                cnt++;
-
-                if (cnt > 10)
-                {
-                    FollowManager.ActionList = ActionHoldApriTag;
-                }
-            }
-
-            //                    ActionHoldPoint(MAX_HOVER_ERR, 300, ActionGoBack);
-        }
-    }
-    break;
-    case ActionHoldMirrorFlipLtype:
-        ActionHoldPoint(MAX_HOVER_ERR, MAX_HOVER_TIME, ActionLand);
-        break;
-    case ActionGoLeft:
-        ActionFormChange(MAX_FORMCHANGE_TIME, TurnLtype, ActionHoldTurnLtype);
-        break;
-    case ActionHoldTurnLtype:
-        ActionHoldPoint(MAX_HOVER_ERR, MAX_HOVER_TIME, ActionGoBack);
-        break;
-    case ActionGoBack:
-        ActionHoldPoint(MAX_FORMCHANGE_TIME, 300, ActionLand);
-        break;
-    case ActionHoldLtype:
-        ActionHoldPoint(MAX_HOVER_ERR, MAX_HOVER_TIME, ActionGoRight);
-        break;
-    case ActionHoldTurnTtype:
-        ActionHoldPoint(MAX_HOVER_ERR, MAX_HOVER_TIME, ActionGoForward);
-        break;
-    case ActionHoldCross:
-        //            ActionHoldPoint(MAX_HOVER_ERR, MAX_HOVER_TIME * 10, ActionLand);
-        break;
-    case ActionHoldApriTag:
-        //悬停时间 10s
-        //            ActionHoldPoint(MAX_HOVER_ERR, 1500, ActionLand);
-        break;
-    case ActionHoverStopPoint:
-    {
-    }
-    break;
-    case ActionFollowTarget:
-    {
-    }
-    break;
-    case ActionLand:
-    {
-        static int Cnt = MAX_TIMEOUT1;
-
-        if (Cnt-- < 0)
-        {
-            FollowManager.ActionList = ActionLock;
-        }
-    }
-    break;
-    case ActionLock:
-        FollowManager.ActionList = ActionWaitting;
-        break;
-    case ActionTest:
-    {
-        static int cnt = 0;
-        cnt++;
-    }
-    break;
-    case ActionSonar:
-    {
-    }
-
-    break;
+		break;
+	case back:
+	{
+		if(absolute(sdk_manager.location_x - patrol_goal[0].x) < 20 && absolute(sdk_manager.location_y - patrol_goal[0].y) < 20)
+			FollowManager.ActionList = ActionLand;
+	}
+		break;
     default:
         break;
     }
 }
 
+static bool flag = false;
+static uint8_t find = 0;
+static int fire_fighting_time;
 //只执行动作
 void UpdateAction(float dt)
 {
     switch (FollowManager.ActionList)
     {
     case ActionWaitting:
-        //Do nothing
         break;
     case ActionTakeOff:
-        UpdateCMD(0, 0, CmdTakeOff);
+		  sdk_takeoff(180);
+		  //sdk_velocity_reset();
+	//sdk_pos_set(patrol_goal[0].x, patrol_goal[0].y);
         break;
     case ActionHoverStartPoint:
-        //起飞
-        {
-            program_ctrl.vel_cmps_h[Y] = 0;
-            program_ctrl.vel_cmps_h[X] = 0;
-        }
+	{
+		sdk_pos_set(patrol_goal[0].x, patrol_goal[0].y);
+		static uint8_t gate = 1;
+		if(absolute(sdk_manager.location_x - patrol_goal[0].x) < 30 && absolute(sdk_manager.location_y - patrol_goal[0].y) < 30 && gate==1)
+		{
+			gate = 0;
+			patrol_point[0] = 1;
+		}
+		if(gate == 0)
+			sdk_velocity_reset();
+			
+	}
         break;
-    case ActionGoForward:
-    case ActionGoBack:
-        //前后飞行
-        {
-            HoldCurrentPostion(dt);
-            if (FollowManager.ActionList == ActionGoForward)
-            {
-                program_ctrl.vel_cmps_h[X] = 15;
-            }
-            else if (FollowManager.ActionList == ActionGoBack)
-            {
-                program_ctrl.vel_cmps_h[X] = -15;
-            }
-        }
-        break;
-    case ActionGoLeft:
-    case ActionGoRight:
-    {
-        HoldCurrentPostion(dt);
-        if (FollowManager.ActionList == ActionGoLeft)
-        {
-            program_ctrl.vel_cmps_h[Y] = 20;
-        }
-        else if (FollowManager.ActionList == ActionGoRight)
-        {
-            program_ctrl.vel_cmps_h[Y] = -20;
-        }
-    }
-    break;
+	case patrol:
+	{
+			
+			//基础部分，只是巡逻
+//			sdk_takeoff(180);
+//			static uint8_t temp_goal = 0;
+//			uint8_t i;
+//			for(i=0;i<10;i++)
+//			{
+//				if(patrol_point[i] == 0)
+//				{
+//					temp_goal = i;
+//					break;
+//				}
+//			}
+//			sdk_pos_set(patrol_goal[temp_goal].x, patrol_goal[temp_goal].y);
+//			if(absolute(sdk_manager.location_x - patrol_goal[temp_goal].x) < 30  && absolute(sdk_manager.location_y - patrol_goal[temp_goal].y) < 30 )
+//				patrol_point[temp_goal] = 1;	
+//			if(temp_goal != 0)
+//				sdk_yaw_reset();
+			
+			
 
-    //悬停动作
-    case ActionHoldLtype:
-    case ActionHoldMirrorFlipLtype:
-    case ActionHoldTurnLtype:
-    case ActionHoldMirrorFlipTurnLtype:
-    case ActionHoldCross:
-    case ActionHoldTtype:
-    case ActionHoldTurnTtype:
-    case ActionHoldFeaturePoint:
-    case ActionHoldApriTag:
-        if (FollowManager.ptrFrame->FormType == ApriTag)
-        {
-            PIDGroup[emPID_FolloLinePosVertically].desired = 120 / 2;
-            PIDGroup[emPID_FolloLinePosHorizontally].desired = 160 / 2;
+//			//发挥部分
+			static uint8_t temp_goal = 0;
+			uint8_t i;
+			for(i=0;i<10;i++)
+			{
+				if(patrol_point[i] == 0)
+				{
+					temp_goal = i;
+					break;
+				}
+			}
 
-            HoldCurrentPostion(dt);
-        }
-        else
-        {
-            program_ctrl.vel_cmps_h[Y] = 0;
-            program_ctrl.vel_cmps_h[X] = 0;
-        }
-        break;
-    case ActionHoverStopPoint:
-        //控制
-        break;
+			if(FollowManager.GroundOpenmvFramePtr->FormType == fire && gate_1 == 1 && temp_goal != 1 && temp_goal != 0)
+			{
+				HoldCurrentPostion(dt);
+			}
+			else 
+			{			
+				__HAL_TIM_SetCompare(&htim2, TIM_CHANNEL_2, 600);
+				sdk_pos_set(patrol_goal[temp_goal].x, patrol_goal[temp_goal].y);
+				sdk_takeoff(180);
+			}
+
+			if(absolute(sdk_manager.location_x - patrol_goal[temp_goal].x) < 30  && absolute(sdk_manager.location_y - patrol_goal[temp_goal].y) < 30 )
+				patrol_point[temp_goal] = 1;	
+			if(temp_goal != 0)
+				sdk_yaw_reset();
+	}
+		break;
+	case back:
+	{
+		sdk_pos_set(patrol_goal[0].x, patrol_goal[0].y);
+	
+	}
+		break;
     case ActionLand:
         //降落
-        UpdateCMD(0, 0, CmdLand);
+		sdk_yaw_reset();
+		sdk_velocity_reset();
+		sdk_land();  
         break;
     case ActionLock:
         g_UAVinfo.FMUflg->unlock = 0;
         break;
-    case ActionTest:
-
-        break;
-    case ActionSonar:
-    {
-    }
-    break;
     default:
         break;
     }
@@ -339,31 +321,74 @@ void UpdateAction(float dt)
     }
 }
 
+static float vel_filter[2],vel_last_filter[2];
+
+
+static uint16_t time = 2000;
+static uint32_t time_2 = 2000;
+static uint8_t time_flag = 0;
+static float vel[2],vel_last[2];
 void HoldCurrentPostion(float dt)
 {
     static float OldPos[2];
-
+	
     //更新测量点
-    PIDGroup[emPID_FolloLinePosVertically].measured = FollowManager.ptrFrame->CentPoint.y1;
-    PIDGroup[emPID_FolloLinePosHorizontally].measured = FollowManager.ptrFrame->CentPoint.x1;
+    FollowManager.ptrPIDInfoV->measured = FollowManager.GroundOpenmvFramePtr->CentPoint.y1;
+    FollowManager.ptrPIDInfoH->measured = (float)(FollowManager.GroundOpenmvFramePtr->CentPoint.x1);
 
-    PIDGroup[emPID_FolloLineSpdVertically].measured = (FollowManager.ptrFrame->CentPoint.y1 - OldPos[0]);
-    PIDGroup[emPID_FolloLineSpdHorizontally].measured = (FollowManager.ptrFrame->CentPoint.x1 - OldPos[1]);
+	
+    PIDGroup[emPID_FolloLineSpdVertically].measured = (float)(FollowManager.GroundOpenmvFramePtr->CentPoint.y1 - OldPos[0]);
+    PIDGroup[emPID_FolloLineSpdHorizontally].measured = -(float)(FollowManager.GroundOpenmvFramePtr->CentPoint.x1 - OldPos[1]);
 
-    OldPos[0] = FollowManager.ptrFrame->CentPoint.y1;
-    OldPos[1] = FollowManager.ptrFrame->CentPoint.x1;
+    OldPos[0] = FollowManager.GroundOpenmvFramePtr->CentPoint.y1;
+    OldPos[1] = FollowManager.GroundOpenmvFramePtr->CentPoint.x1;
 
     UpdatePID(FollowManager.ptrPIDInfoH, dt); //PID
     UpdatePID(FollowManager.ptrPIDInfoV, dt); //PID
 
     PIDGroup[emPID_FolloLineSpdVertically].desired = FollowManager.ptrPIDInfoV->out;
-    PIDGroup[emPID_FolloLineSpdHorizontally].desired = FollowManager.ptrPIDInfoH->out;
+    PIDGroup[emPID_FolloLineSpdHorizontally].desired = -FollowManager.ptrPIDInfoH->out;
 
-    UpdatePID(&PIDGroup[emPID_FolloLineSpdHorizontally], dt); //PID
-    UpdatePID(&PIDGroup[emPID_FolloLineSpdVertically], dt);   //PID
+    UpdatePID(&PIDGroup[emPID_FolloLineSpdHorizontally], dt); //PID11
+    UpdatePID(&PIDGroup[emPID_FolloLineSpdVertically], dt);   //PID10
+	
+	vel[0] = 0.3 * (-PIDGroup[emPID_FolloLineSpdVertically].out) + 0.7 * vel_last[0];
+	vel[1] = 0.3 * (PIDGroup[emPID_FolloLineSpdHorizontally].out) + 0.7 * vel_last[1];
+	sdk_velocity_set(vel[0], vel[1]);
+	
+	vel_last[0] = vel[0];
+	vel_last[1] = vel[1]; 
+	
+	if(absolute(FollowManager.ptrPIDInfoV->Err) < 100 && absolute(FollowManager.ptrPIDInfoH->Err) < 100)
+	{
+		sdk_takeoff(100);
+		sdk_velocity_reset();
+		if(gate_1 == 1 && absolute(FollowManager.distance - 100) < 5)
+		{
+			time--;
+		}
+		if(gate_1 == 1 && time == 0 && time_2 !=0)
+		{
+			time_2--;
+			fire_position.x = UWB_Manager.pos_x;
+			fire_position.y = UWB_Manager.pos_y;
+			__HAL_TIM_SetCompare(&htim2, TIM_CHANNEL_2, 1500);
+			gate_1 = 0;
+		}
+	}
+	
+}
 
-    program_ctrl.vel_cmps_h[Y] = PIDGroup[emPID_FolloLineSpdHorizontally].out;
-    program_ctrl.vel_cmps_h[X] = PIDGroup[emPID_FolloLineSpdVertically].out;
+static uint16_t x[2];
+void HoldYawAngle(float dt)
+{
+	x[0] = 0.5 * (FollowManager.FrontOpenmvFramePtr->point_1.x1 + FollowManager.FrontOpenmvFramePtr->point_2.x1);
+    PIDGroup[emPID_FollowSpdYaw].measured = 0.2 * x[0] + 0.8 * x[1];
+	x[1] = x[0];
+    UpdatePID(FollowManager.ptrPIDInfoY, dt);
+
+    sdk_yaw_little(-FollowManager.ptrPIDInfoY->out);
+
 }
 
 #include "Ano_OF.h"
@@ -462,46 +487,45 @@ void TimeoutCheck()
     }
 }
 
+static uint8_t input = 0;
+static uint8_t input2 = 0;
 void UpdateButton()
 {
-//    //判定两个输入是否有效，其实是判断左右两个按键
-//    volatile static uint8_t input = 0;
-//    volatile static uint8_t input2 = 0;
-//    input = P1IN & BIT1;
-//    input2 = P1IN & BIT4;
+    //判定两个输入是否有效，其实是判断左右两个按键
+	input = HAL_GPIO_ReadPin(GPIOE, GPIO_PIN_3); //左 按下为0
+	input2 = HAL_GPIO_ReadPin(GPIOE, GPIO_PIN_4);  //右 按下为0
+    //判断巡线按钮是否按下
+    if (input)
+    {
+    }
+    else
+    {
+        FollowLine = true;
+    }
 
-//    //判断巡线按钮是否按下
-//    if (input)
-//    {
-//    }
-//    else
-//    {
-//        FollowLine = true;
-//    }
+    //判断寻找ApriTag按钮是否按下
+    if (input2)
+    {
+    }
+    else
+    {
+        FollowApriTag = true;
+    }
 
-//    //判断寻找ApriTag按钮是否按下
-//    if (input2)
-//    {
-//    }
-//    else
-//    {
-//        FollowApriTag = true;
-//    }
+    //判断当前是否被多按
+    if (FollowApriTag == false && FollowLine == false)
+    {
+        return;
+    }
+    else
+    {
+        static uint8_t CloseGate = 1;
 
-//    //判断当前是否被多按
-//    if (FollowApriTag == false && FollowLine == false)
-//    {
-//        return;
-//    }
-//    else
-//    {
-//        static bool CloseGate = true;
-
-//        //动作线进入倒计时状态
-//        if (CloseGate)
-//        {
-//            CloseGate = false;
-//            FollowManager.ActionList = ActionCountdown;
-//        }
-//    }
+        //动作线进入倒计时状态
+        if (CloseGate)
+        {
+            CloseGate = 0;
+            FollowManager.ActionList = ActionCountdown;
+        }
+    }
 }

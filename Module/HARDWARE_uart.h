@@ -20,7 +20,7 @@
 //外部文件引用
 #include "include.h"
 
-#define MAX_RECEIVE_CNT     150
+#define MAX_RECEIVE_CNT     200
 #define MAX_TRANSMIT_CNT    50
 
 
@@ -65,6 +65,49 @@ typedef enum
     
     Num_USART,
 }emUSART_t;
+
+#pragma pack(1)
+typedef struct
+{
+	uint8_t head;
+	uint8_t id;
+	uint16_t dist;
+	uint16_t amp;
+	uint16_t temp;
+	uint8_t check_sum;
+}TF_Luna_t;
+
+
+#pragma pack()
+typedef struct
+{
+	uint8_t head;
+	float   x;
+	float   y;
+	float   z;
+	float   roll;
+	float   pitch;
+	float   yaw;
+	uint8_t end;
+}position_t;
+
+
+typedef struct
+{
+	uint8_t head;  //1
+	long odom_x:24;  //3
+	long odom_y:24;  //3
+	long fire_x:24;  //3
+	long fire_y:24;  //3
+	uint8_t end;   //1
+}position_send_t;
+#pragma
+
+union LongUint8_t
+{
+    long l:24;
+    uint8_t u[3];
+};
 
 extern Usart_t UsartGroup[Num_USART];
 

@@ -5,9 +5,10 @@
 #include "stdbool.h"
 #include "pid.h"
 #include "gcs.h"
+#include "HARDWARE_uart.h"
 
 //单位:10ms
-#define MAX_COUNTDOWN 100 * 8
+#define MAX_COUNTDOWN 100 * 6
 #define TARGETALTITUDECM 50
 #define MAX_HOVER_ERR 10
 #define MAX_FORMCHANGE_TIME 3
@@ -16,9 +17,9 @@
 #define MAX_TIMEOUT2 1500
 #define MAX_ALT_ERR 10
 
-
-#define LookDownOpenmv  UART_4
-#define FrontViewOpenmv  UART_6
+#define set_position_mode 1
+#define LookDownOpenmv  UART_3
+#define FrontViewOpenmv  UART_4
 /*
 
 */
@@ -56,8 +57,10 @@ typedef enum
     LeftTtype,
     ApriTag = 100,
     Pole = 200,
+	BLOB = 201,
     Cirle = 202,
     FirstOrdCode = 203,
+	fire = 204,
     SecondOrdCode,
 
     NumofForm,
@@ -69,18 +72,6 @@ typedef enum
     ActionCountdown,
     ActionTakeOff,
     ActionHoverStartPoint,
-
-    //悬停动作
-    ActionHoldLtype,
-    ActionHoldMirrorFlipLtype,
-    ActionHoldTurnLtype,
-    ActionHoldMirrorFlipTurnLtype,
-    ActionHoldCross,
-    ActionHoldTtype,
-    ActionHoldTurnTtype,
-    ActionHoldFeaturePoint,
-    ActionHoldLeftTtype,
-    ActionHoldApriTag,
 
     //飞行动作
     ActionGoForward,
@@ -95,7 +86,24 @@ typedef enum
     ActionFindLandSpace,
     ActionResetAngle,
     ActionPreLand,
+    
+    //悬停动作
+    ActionHoldLtype,
+    ActionHoldMirrorFlipLtype,
+    ActionHoldTurnLtype,
+    ActionHoldMirrorFlipTurnLtype,
+    ActionHoldCross,
+    ActionHoldTtype,
+    ActionHoldTurnTtype,
+    ActionHoldFeaturePoint,
+    ActionHoldLeftTtype,
+    ActionHoldApriTag,
+
+ 
     ActionStop,
+    ActionGoRight2,
+    ActionGoRight3,
+    ActionGoRight4,
 
     //寻杆步骤
     ActionFindPoleStep1,
@@ -126,7 +134,15 @@ typedef enum
     ActionWayPoint3,
 
     ActionEmergencyLand,
-
+	
+	//巡逻状态
+	patrol,
+	fire_fighting,
+	back,
+	//灭火状态
+	go,
+	stop,
+	recover,
     NumofActionList,
 } FSMList_t;
 
@@ -148,36 +164,29 @@ typedef struct
 
 typedef struct
 {
-    int16_t x1;
-    int16_t y1;
+    uint16_t x1;
+    uint16_t y1;
 } Point_t;
 
 //数据结构声明
 #pragma pack(1)
 typedef struct
 {
-    int16_t Start;
-    //uint16_t Cnt;
-    uint8_t cnt1;
-    uint8_t Target;
-    FormType_t FormType;
-    Point_t CentPoint;
-    int16_t End;
-} OpenMVFrame_t;
+    uint8_t Start;  //1
+    FormType_t FormType; //1
+    Point_t CentPoint;   //4
+    uint8_t End;    //1
+} Ground_OpenMVFrame_t;  //俯视openmv
 
 typedef struct
 {
-    int16_t Start;
-    uint8_t cnt1;
-    uint8_t Target;
+    uint8_t Start;
     FormType_t FormType;
-    Point_t CentPoint;
-    uint16_t Area;
-    uint8_t prame2;
-    uint8_t prame3;
-    uint8_t prame4;
-    int16_t End;
-} OpenMVFrame2_t;
+    Point_t point_1;
+	Point_t point_2;
+	uint16_t pole_dist;
+    uint8_t End;
+} Front_OpenMVFrame_t;  //前视openmv
 #pragma pack()
 
 typedef struct
@@ -198,16 +207,19 @@ typedef enum
     list_searching,
 } enSearch_state_t;
 
-
+typedef struct
+{
+	long  x:24;
+	long  y:24;
+}patrol_goal_t;
 
 
 typedef struct
 {
     //OpenMV数据帧   图像的形状、位置
-    OpenMVFrame_t *GroundOpenmvFramePtr;
-    OpenMVFrame_t *FrontOpenmvFramePtr;
-    OpenMVFrame2_t *FrontOpenmvFramePtr2;
-    OpenMVFrame_t *ptrFrame;
+    Front_OpenMVFrame_t *FrontOpenmvFramePtr;
+    Ground_OpenMVFrame_t *GroundOpenmvFramePtr;
+    Front_OpenMVFrame_t *ptrFrame;
     //飞机的状态
     UAV_info_t *ptrUAVInfo;
 
@@ -224,14 +236,23 @@ typedef struct
     PIDInfo_t *ptrPIDInfoH;
     PIDInfo_t *ptrPIDInfoY;
 
+	PIDInfo_t *ptrPIDposition_x;
+	PIDInfo_t *ptrPIDposition_y;
     float distance;
+	
 
+	
     bool ActionComplete;
 } FollowManager_t;
-
+extern uint8_t fire_fighting_flag;
+extern bool FollowApriTag;
 extern FollowManager_t FollowManager;
 extern SonarManager_t SonarManager;
 extern Point_t last_openmv;
 void UpdateCentControl(float dt);
 void Follow_Init(void);
+extern void HoldCurrentPostion(float dt);
+extern float absolute(float x);
+extern patrol_goal_t start_position;
+extern patrol_goal_t fire_position;
 #endif

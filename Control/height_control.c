@@ -97,7 +97,7 @@ void ALT_Ctrl(float dT_s)
     }
     
 	//deadzone
-	if(exp_vel_transition[0]<0.1f && exp_vel_transition[0]>-0.1f)
+	if(exp_vel_transition[0]<0.15f && exp_vel_transition[0]>-0.15f)
 	{
 		exp_vel_transition[0] = 0;
 	}

@@ -43,6 +43,8 @@
 #include "HARDWARE_i2c.h"
 #include "HARDWARE_uart.h"
 #include "tim.h"
+#include "bt.h"
+//#include "lcd_status.h"
 //宏定义区
 #define TEST_NUM 1 
 
@@ -58,7 +60,7 @@
 //Extern引用
 bool InitComplete = false;
 extern _ano_of_st ANO_OF;
-
+extern void lcd_status_init(void);
 uint8_t test[] = "test";
 //私有函数区
 void PID_Init(void); 
@@ -82,6 +84,8 @@ queue_t USB_Send_Queue;
     USART_Init();
     Motor_Init();
     //POWER管理
+    power_init();
+//    bt_init();
 //    SPL06Init();                    //SPL06初始化
     PID_Init();                     //PID参数初始化
 //    server_init();                  //舵机初始化
@@ -94,7 +98,7 @@ queue_t USB_Send_Queue;
     HAL_TIM_Base_Start_IT(&htim4);
     LCD_Init();
     LCD_Fill(0,0,160,180,GRAY);
-    
+    lcd_status_init();
     //判断MPU6050和SPL06初始化是否成功
     InitComplete = true;
     
@@ -123,7 +127,7 @@ void PID_Init(void)
     PIDGroup[emPID_Roll_Spd].kp    = 1.1f;
     PIDGroup[emPID_Roll_Spd].ki    = 1.0f;
     PIDGroup[emPID_Roll_Spd].kd    = 0.04f;
-    PIDGroup[emPID_Roll_Spd].IntegLimitHigh = 10;
+    PIDGroup[emPID_Roll_Spd].IntegLimitHigh = 10; 
     PIDGroup[emPID_Roll_Spd].IntegLimitLow = -10;
 
     PIDGroup[emPID_Yaw_Pos].kp     = 8.0f;
@@ -132,8 +136,7 @@ void PID_Init(void)
     PIDGroup[emPID_Yaw_Spd].OutLimitHigh = 100;
     PIDGroup[emPID_Yaw_Spd].OutLimitLow = -100;
 
-    PIDGroup[emPID_Roll_Spd].IntegLimitHigh = 50; 
-    PIDGroup[emPID_Roll_Spd].IntegLimitLow = -50;
+
 }
 
 /******************* (C) 版权所有 2018 北京中科浩电科技有限公司 *******************/

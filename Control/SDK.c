@@ -4,26 +4,17 @@
 #include "myMath.h"
 #include "Ano_OF.h"
 #include "math.h"
-
+#include "UWB.h"
 //void sdk_target_set(float x_pos,float y_pos,float velocity_x, float velocity);
 //
-#define MAX_VELOCITY_X 80
-#define MAX_VELOCITY_Y 80
-#define MAX_ALT_THR 20
+#define MAX_VELOCITY_X 50
+#define MAX_VELOCITY_Y 50
+#define MAX_ALT_THR  20
 #define LAND_SPEED -50
 extern float PIDGroup_desired_yaw_pos_tmp;
 extern _ano_of_st ANO_OF;
 
-typedef enum
-{
-    sdk_alt = 0,
-    // sdk_velocity_x,
-    // sdk_velocity_y,
-    sdk_pos_x,
-    sdk_pos_y,
 
-    sdk_pid_list,
-} sdk_pid_list_t;
 
 PIDInfo_t sdk_pid[sdk_pid_list];
 void sdk_update_s_2(float raw, s2_t *s2);
@@ -46,32 +37,32 @@ void sdk_init()
     sdk_pid[sdk_alt].OutLimitHigh = MAX_ALT_THR;
     sdk_pid[sdk_alt].OutLimitLow = -MAX_ALT_THR;
 
-    sdk_pid[sdk_alt].kp = 0.3;
-    sdk_pid[sdk_alt].ki = 0.01;
+    sdk_pid[sdk_alt].kp = 0.40;
+    sdk_pid[sdk_alt].ki = 0.1;
 
-    sdk_pid[sdk_alt].IntegLimitHigh = 10;
+    sdk_pid[sdk_alt].IntegLimitHigh = 20;
     sdk_pid[sdk_alt].IntegLimitLow = -10;
     
     //位置控制PID
-    sdk_pid[sdk_pos_x].kp = 0.55f;
-    sdk_pid[sdk_pos_x].ki = 0.1f;
-    sdk_pid[sdk_pos_y].kp = 0.55f;
-    sdk_pid[sdk_pos_y].ki = 0.1f;
+    sdk_pid[sdk_pos_x].kp = 0.3f;
+    sdk_pid[sdk_pos_x].ki = 0.0f;
+    sdk_pid[sdk_pos_y].kp = 0.2f;
+    sdk_pid[sdk_pos_y].ki = 0.0f;
     
     //位置控制器输出限幅
-    sdk_pid[sdk_pos_x].OutLimitHigh = 20;
-    sdk_pid[sdk_pos_x].OutLimitLow = -20;
+    sdk_pid[sdk_pos_x].OutLimitHigh = 25;
+    sdk_pid[sdk_pos_x].OutLimitLow = -25;
     sdk_pid[sdk_pos_y].OutLimitHigh = 20;
     sdk_pid[sdk_pos_y].OutLimitLow = -20;
     
-    sdk_pid[sdk_pos_x].IntegLimitHigh = 10;
-    sdk_pid[sdk_pos_x].IntegLimitLow = -10;
-    sdk_pid[sdk_pos_y].IntegLimitHigh = 10;
-    sdk_pid[sdk_pos_y].IntegLimitLow = -10;
+    sdk_pid[sdk_pos_x].IntegLimitHigh = 8;
+    sdk_pid[sdk_pos_x].IntegLimitLow = -8;
+    sdk_pid[sdk_pos_y].IntegLimitHigh = 6;
+    sdk_pid[sdk_pos_y].IntegLimitLow = -6;
 
     sdk_manager.sdk_alt_step = 2;
     sdk_manager.sdk_yaw_step = 2;
-    sdk_manager.sdk_yaw_d_angle = 0.1f;
+    sdk_manager.sdk_yaw_d_angle = 0.3f;
 
     sdk_manager.sdk_auto_takeoff = true;
     sdk_manager.yaw_pos_ptr = &PIDGroup_desired_yaw_pos_tmp;
@@ -130,7 +121,8 @@ void sdk_reset_Location()
 void sdk_update(float dt)
 {
     //更新位置的时候记得旋转坐标系
-    sdk_update_position();
+	if(FollowManager.ActionList != ActionCountdown && FollowManager.ActionList != ActionLand)
+		sdk_update_position();
 
     sdk_update_s_2(HeightInfo.Z_Postion, &s2_height);
     
@@ -138,8 +130,8 @@ void sdk_update(float dt)
     {
     case 0:
         sdk_pid[sdk_alt].measured = ANO_OF.ALT;
+	
         UpdatePID(&sdk_pid[sdk_alt], dt);
-
         sdk_manager.sdk_alt_out = sdk_pid[sdk_alt].out;
 
         //此处缺少高度飞行成功以后的状态切换
@@ -468,28 +460,32 @@ void sdk_reset_position()
     sdk_manager.location_y = 0;
 }
 
+float vel[2];
+float vel_last[2];
 void sdk_update_position()
 {
-    if(ANO_OF.DX2FIX > -100 && ANO_OF.DX2FIX < 100 && 
-       ANO_OF.DY2FIX > -100 && ANO_OF.DY2FIX < 100)
-    {
-        sdk_manager.location_x += ANO_OF.DX2FIX * 0.01f;
-        sdk_manager.location_y += ANO_OF.DY2FIX * 0.01f * -1;
-    }
+    sdk_manager.location_x = UWB_Manager.pos_x ;//* 0.1 +  position_last[0] * 0.9;
+	sdk_manager.location_y = UWB_Manager.pos_y ;//* 0.1 +  position_last[1] * 0.9;
 }
 
 
 void sdk_pos_set(float x,float y)
 {
-    sdk_pid[sdk_pos_x].measured = sdk_manager.location_x;
+	
+    sdk_pid[sdk_pos_x].measured = sdk_manager.location_x ;
     sdk_pid[sdk_pos_x].desired = x;
     UpdatePID(&sdk_pid[sdk_pos_x],0.01f);
-    sdk_velociyt_x_set(sdk_pid[sdk_pos_x].out);
-    
-    sdk_pid[sdk_pos_y].measured = sdk_manager.location_y;
+
+    sdk_pid[sdk_pos_y].measured = sdk_manager.location_y ;
     sdk_pid[sdk_pos_y].desired = y;
     UpdatePID(&sdk_pid[sdk_pos_y],0.01f);
-    sdk_velociyt_y_set(sdk_pid[sdk_pos_y].out);
+	
+	vel[0] = vel_last[0] * 0.95 + sdk_pid[sdk_pos_x].out * 0.05;
+	vel[1] = vel_last[1] * 0.95 + sdk_pid[sdk_pos_y].out * 0.05;
+	
+	vel_last[0] = vel[0];
+	vel_last[1] = vel[1];
+	sdk_velocity_set(vel[0],vel[1]);
 }
 
 bool is_pos_x_set_compleate(float max_err)

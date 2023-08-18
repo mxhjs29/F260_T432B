@@ -33,16 +33,19 @@
 #include "FollowLine.h"
 #include "usart.h"
 #include "ano_of.h"
-
+#include "stm32f4xx_it.h"
+#include "UWB.h"
 #define USART_RX_TIMEOUT_MAX 5
 
-
+TF_Luna_t TF_Luna;
 bool is_uart_init_compleate = false;
 extern Remote_t Remote;
 bool lbUsartRx = false;
 int TimeoutUSART = 0;
 uint8_t SBusRxBuff[150] = {0};
 
+uint8_t UART4_TxBUFF_1[5];
+uint8_t UART4_TxBUFF_2[5];
 Usart_t UsartGroup[Num_USART];
 
 void UART_1_ReceiveHandle(uint8_t *ptr, uint8_t length);
@@ -51,7 +54,7 @@ void UART_3_ReceiveHandle(uint8_t *ptr, uint8_t length);
 void UART_4_ReceiveHandle(uint8_t *ptr, uint8_t length);
 void UART_5_ReceiveHandle(uint8_t *ptr, uint8_t length);
 void UART_6_ReceiveHandle(uint8_t *ptr, uint8_t length);
-
+static int UART_Receive_DMA_No_IT(UART_HandleTypeDef* huart, uint8_t* pData, uint32_t Size);
 /******************************************************************************
   * 函数名称：USART_Init
   * 函数描述：串口初始化
@@ -84,35 +87,64 @@ void USART_Init()
     UsartGroup[UART_6].moduleInstance = huart6;
     
     __HAL_UART_ENABLE_IT(&huart1, UART_IT_IDLE);
-    __HAL_UART_ENABLE_IT(&huart2, UART_IT_IDLE);
+    __HAL_UART_ENABLE_IT(&huart2, UART_IT_RXNE);
     __HAL_UART_ENABLE_IT(&huart3, UART_IT_IDLE);
     __HAL_UART_ENABLE_IT(&huart4, UART_IT_IDLE);
-//    __HAL_UART_ENABLE_IT(&huart5, UART_IT_IDLE);
+    __HAL_UART_ENABLE_IT(&huart5, UART_IT_IDLE);
     __HAL_UART_ENABLE_IT(&huart6, UART_IT_IDLE);
     
     HAL_UART_Receive_DMA(&UsartGroup[UART_1].moduleInstance,UsartGroup[UART_1].RxBuff,MAX_RECEIVE_CNT);
-    HAL_UART_Receive_DMA(&UsartGroup[UART_2].moduleInstance,UsartGroup[UART_2].RxBuff,MAX_RECEIVE_CNT);
+//    HAL_UART_Receive_DMA(&UsartGroup[UART_2].moduleInstance,UsartGroup[UART_2].RxBuff,MAX_RECEIVE_CNT);
     HAL_UART_Receive_DMA(&UsartGroup[UART_3].moduleInstance,UsartGroup[UART_3].RxBuff,MAX_RECEIVE_CNT);
     HAL_UART_Receive_DMA(&UsartGroup[UART_4].moduleInstance,UsartGroup[UART_4].RxBuff,MAX_RECEIVE_CNT);
-//    HAL_UART_Receive_DMA(&UsartGroup[UART_5].moduleInstance,UsartGroup[UART_5].RxBuff,MAX_RECEIVE_CNT);
+    HAL_UART_Receive_DMA(&UsartGroup[UART_5].moduleInstance,UsartGroup[UART_5].RxBuff,MAX_RECEIVE_CNT);
     HAL_UART_Receive_DMA(&UsartGroup[UART_6].moduleInstance,UsartGroup[UART_6].RxBuff,MAX_RECEIVE_CNT);
 
     __HAL_UART_CLEAR_OREFLAG(&UsartGroup[UART_1].moduleInstance);
     __HAL_UART_CLEAR_OREFLAG(&UsartGroup[UART_2].moduleInstance);
     __HAL_UART_CLEAR_OREFLAG(&UsartGroup[UART_3].moduleInstance);
     __HAL_UART_CLEAR_OREFLAG(&UsartGroup[UART_4].moduleInstance);
-//    __HAL_UART_CLEAR_OREFLAG(&UsartGroup[UART_5].moduleInstance);
+    __HAL_UART_CLEAR_OREFLAG(&UsartGroup[UART_5].moduleInstance);
     __HAL_UART_CLEAR_OREFLAG(&UsartGroup[UART_6].moduleInstance);
     
     UsartGroup[UART_1].last_rx_cnt = MAX_RECEIVE_CNT;
     UsartGroup[UART_2].last_rx_cnt = MAX_RECEIVE_CNT;
     UsartGroup[UART_3].last_rx_cnt = MAX_RECEIVE_CNT;
     UsartGroup[UART_4].last_rx_cnt = MAX_RECEIVE_CNT;
-//    UsartGroup[UART_5].last_rx_cnt = MAX_RECEIVE_CNT;
+    UsartGroup[UART_5].last_rx_cnt = MAX_RECEIVE_CNT;
     UsartGroup[UART_6].last_rx_cnt = MAX_RECEIVE_CNT;
     
     is_uart_init_compleate = true;
+	
+
+	
 }
+
+static int UART_Receive_DMA_No_IT(UART_HandleTypeDef* huart, uint8_t* pData, uint32_t Size)
+{
+    uint32_t tmp1 = 0;
+    tmp1 = huart->RxState;
+    if (tmp1 == HAL_UART_STATE_READY)
+    {
+        if ((pData == NULL) || (Size == 0))
+        {
+            return HAL_ERROR;
+        }
+        __HAL_LOCK(huart);
+        huart->pRxBuffPtr = pData;
+        huart->RxXferSize = Size;
+        huart->ErrorCode  = HAL_UART_ERROR_NONE;
+        HAL_DMA_Start(huart->hdmarx, (uint32_t)&huart->Instance->DR,(uint32_t)pData, Size);
+        SET_BIT(huart->Instance->CR3, USART_CR3_DMAR);
+        __HAL_UNLOCK(huart);
+        return HAL_OK;
+    }
+    else
+    {
+        return HAL_BUSY;
+    }
+}
+
 
 /******************************************************************************
   * 函数名称：PollingUSART
@@ -214,11 +246,13 @@ void usart_rx_idle_handle(emUSART_t uart)
     HAL_UART_DMAStop(&UsartGroup[uart].moduleInstance);
     
 	UsartGroup[uart].RxCnt = MAX_RECEIVE_CNT - UsartGroup[uart].moduleInstance.hdmarx->Instance->NDTR;
-   
-    memcpy(UsartGroup[uart].RxHandleBuff, UsartGroup[uart].RxBuff, UsartGroup[uart].RxCnt);
     
-    UsartGroup[uart].RxHandle(UsartGroup[uart].RxBuff, UsartGroup[uart].RxCnt);     
-        
+	memcpy(UsartGroup[uart].RxHandleBuff, UsartGroup[uart].RxBuff, UsartGroup[uart].RxCnt);
+	
+	UsartGroup[uart].RxHandle(UsartGroup[uart].RxBuff, UsartGroup[uart].RxCnt);
+
+  
+	
 //    __HAL_DMA_SET_COUNTER(UsartGroup[uart].moduleInstance.hdmarx, MAX_RECEIVE_CNT);
 //    __HAL_DMA_ENABLE(UsartGroup[uart].moduleInstance.hdmarx);
     UsartGroup[uart].moduleInstance.RxState = HAL_UART_STATE_READY;
@@ -243,20 +277,78 @@ void UART_2_ReceiveHandle(uint8_t *ptr, uint8_t length)
 void UART_3_ReceiveHandle(uint8_t *ptr, uint8_t length)
 {
 
+	if(*ptr==0xaa)
+	{
+		FollowManager.GroundOpenmvFramePtr = (Ground_OpenMVFrame_t *)ptr;
+	}
 }
 
 void UART_4_ReceiveHandle(uint8_t *ptr, uint8_t length)
 {
-
+	if(*ptr == 'f' && *(ptr+2) == 'e')
+	{
+		if(*(ptr+1)==1)
+			FollowApriTag = true;
+	}
+		
+	
 }
 
+static uint8_t a;
 void UART_5_ReceiveHandle(uint8_t *ptr, uint8_t length)
 {
+	
+	if(*ptr == 0x59)
+	{
+		TF_Luna.head = *ptr;
+		TF_Luna.id = *(ptr + 1);
+		if(TF_Luna.head == 0x59 && TF_Luna.id == 0x59)
+		{
+			TF_Luna.dist = (uint16_t)ptr[3] << 8 | ptr[2];
+			TF_Luna.amp = (uint16_t)ptr[5] << 8 | ptr[4];
+			TF_Luna.temp = (uint16_t)ptr[7] << 8 | ptr[6];
+			TF_Luna.check_sum = ptr[8];
+			if(TF_Luna.amp >= 100)
+				ANO_OF.ALT = TF_Luna.dist;
+
+		}
+	}
 
 }
 
 void UART_6_ReceiveHandle(uint8_t *ptr, uint8_t length)
 {
+
+	
+
+	
+	
+	static uint16_t b=0;
+//	for(b=0;b<128;b++)
+//	{
+		if(ptr[b] == 0x55 && ptr[b+1] == 0x04)
+		{
+			UWB_Manager.frame_head=ptr[b+0];
+			UWB_Manager.function_mark=ptr[b+1];
+			if(ptr[b+0]==0x55&&ptr[b+1]==0x04)
+			{
+				UWB_Manager.frame_length=ptr[b+2]|ptr[b+3]<<8;
+				UWB_Manager.role=ptr[b+4];
+				UWB_Manager.id=ptr[b+5];
+				if(UWB_Manager.role==0x02&&UWB_Manager.id==0x00)
+				{
+					UWB_Manager.system_time=ptr[b+6]|ptr[b+7]<<8|ptr[b+8]<<16|ptr[b+9]<<24;
+					UWB_Manager.pos_x=(ptr[b+13]|ptr[b+14]<<8|ptr[b+15]<<16)/10;
+					UWB_Manager.pos_y=(ptr[b+16]|ptr[b+17]<<8|ptr[b+18]<<16)/10;
+					UWB_Manager.pos_z=(ptr[b+19]|ptr[b+20]<<8|ptr[b+21]<<16)/10;//100000;			
+				}		
+			}
+		
+		}
+			
+//	}
+
+	
 
 }
 

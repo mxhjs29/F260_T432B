@@ -1,9 +1,9 @@
 f260-t432b\remote.o: ..\Control\remote.c
 f260-t432b\remote.o: ..\Control\control.h
 f260-t432b\remote.o: ..\Math\pid.h
-f260-t432b\remote.o: D:\Software\MDK\ARM\ARMCC\Bin\..\include\stdbool.h
-f260-t432b\remote.o: D:\Software\MDK\ARM\ARMCC\Bin\..\include\stdint.h
-f260-t432b\remote.o: D:\Software\MDK\ARM\ARMCC\Bin\..\include\math.h
+f260-t432b\remote.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdbool.h
+f260-t432b\remote.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdint.h
+f260-t432b\remote.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\math.h
 f260-t432b\remote.o: ..\Math\myMath.h
 f260-t432b\remote.o: ../Inc/main.h
 f260-t432b\remote.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h
@@ -20,7 +20,7 @@ f260-t432b\remote.o: ../Drivers/CMSIS/Include/mpu_armv7.h
 f260-t432b\remote.o: ../Drivers/CMSIS/Device/ST/STM32F4xx/Include/system_stm32f4xx.h
 f260-t432b\remote.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h
 f260-t432b\remote.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy/stm32_hal_legacy.h
-f260-t432b\remote.o: D:\Software\MDK\ARM\ARMCC\Bin\..\include\stddef.h
+f260-t432b\remote.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stddef.h
 f260-t432b\remote.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_rcc_ex.h
 f260-t432b\remote.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_exti.h
 f260-t432b\remote.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_gpio.h
@@ -35,7 +35,6 @@ f260-t432b\remote.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_i2c.h
 f260-t432b\remote.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_i2c_ex.h
 f260-t432b\remote.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_pwr.h
 f260-t432b\remote.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_pwr_ex.h
-f260-t432b\remote.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_spi.h
 f260-t432b\remote.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim.h
 f260-t432b\remote.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim_ex.h
 f260-t432b\remote.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_uart.h
@@ -51,6 +50,6 @@ f260-t432b\remote.o: ..\Module\imu.h
 f260-t432b\remote.o: ..\Module\mpu6050.h
 f260-t432b\remote.o: ..\Module\speed_estimator.h
 f260-t432b\remote.o: ..\Math\my_queue.h
-f260-t432b\remote.o: D:\Software\MDK\ARM\ARMCC\Bin\..\include\string.h
+f260-t432b\remote.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\string.h
 f260-t432b\remote.o: ..\Control\pos_ctrl.h
 f260-t432b\remote.o: ..\Module\Ano_OF.h

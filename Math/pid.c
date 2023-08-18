@@ -29,7 +29,7 @@ PID驱动使用方法如下：
 //外部文件引用
 #include "pid.h"
 #include "myMath.h"    
-
+#include "sdk.h"
 
 //宏定义区
 
@@ -109,7 +109,11 @@ void UpdatePID(PIDInfo_t* pid, const float dt)
     {
         pid->integ = LIMIT(pid->integ, pid->IntegLimitLow, pid->IntegLimitHigh);
     }
-    
+    if(pid == &sdk_pid[sdk_pos_x] || pid == &sdk_pid[sdk_pos_y])
+	{
+		if( pid->integ > 50)
+			pid->integ = 0;
+	}
     //deriv = (pid->Err - pid->prevError)/dt;  
     deriv = -(pid->measured - pid->prevError)/dt;
 		

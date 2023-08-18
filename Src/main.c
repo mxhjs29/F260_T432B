@@ -22,7 +22,6 @@
 #include "main.h"
 #include "dma.h"
 #include "i2c.h"
-#include "spi.h"
 #include "tim.h"
 #include "usart.h"
 #include "usb_device.h"
@@ -31,6 +30,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "include.h"
+#include "UWB.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -40,7 +40,9 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+#define time_1 500000
+#define time_2 1000000
+  static int  cnt = 0;
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -104,7 +106,6 @@ int main(void)
   MX_USART6_UART_Init();
   MX_USB_DEVICE_Init();
   MX_I2C3_Init();
-  MX_SPI2_Init();
   MX_TIM2_Init();
   MX_TIM3_Init();
   MX_USART1_UART_Init();
@@ -113,7 +114,13 @@ int main(void)
   /* Initialize interrupts */
   MX_NVIC_Init();
   /* USER CODE BEGIN 2 */
-    Hadrware_Init();
+  HAL_TIM_Base_Start(&htim2);
+  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_2);
+  Hadrware_Init();
+  uwb_init();
+	//HAL_DeInit();
+//	__HAL_UART_CLEAR_IDLEFLAG(&huart4);
+//	__HAL_UART_ENABLE_IT(&huart4, UART_IT_IDLE);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -124,6 +131,25 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
       KernelPolling();
+	
+	  
+
+	 
+//	  if(cnt <= time_1)
+//	  {
+//		  __HAL_TIM_SetCompare(&htim2, TIM_CHANNEL_2, 1500);
+//		
+//	  }
+	 
+
+//	 if(cnt <=  time_2 && cnt > time_1)
+//	  {
+//		  __HAL_TIM_SetCompare(&htim2, TIM_CHANNEL_2, 600);
+//		
+//	  }
+//	  cnt++;
+//	  if(cnt > time_2) cnt = 0;	  
+		 
   }
   /* USER CODE END 3 */
 }
